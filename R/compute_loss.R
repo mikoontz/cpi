@@ -24,6 +24,9 @@ compute_loss <- function(pred, measure, resonse_is_prob = FALSE) {
   } else if (measure$id == "classif.logloss") {
     # Logloss 
     eps <- 1e-15
+    if (response_is_prob) {
+      prob <- setNames(data.frame(1 - prob, prob), nm = c("0", "1"))
+    }
     ii <- match(as.character(truth), colnames(prob))
     p <- prob[cbind(seq_len(nrow(prob)), ii)]
     p <- pmax(eps, pmin(1 - eps, p))
