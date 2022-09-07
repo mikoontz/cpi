@@ -1,6 +1,6 @@
 
 # Internal function to compute sample loss
-compute_loss <- function(pred, measure, resonse_is_prob = FALSE) {
+compute_loss <- function(pred, measure, response_is_prob = FALSE) {
   if (inherits(pred, "Prediction")) {
     truth <- pred$truth
     response <- pred$response

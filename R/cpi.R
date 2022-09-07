@@ -246,7 +246,7 @@ cpi <- function(task, learner,
   }
 
   # For each feature, fit reduced model and return difference in error
-  cpi_fun <- function(i, response_is_prob) {
+  cpi_fun <- function(i) {
     if (is.null(test_data)) {
       reduced_test_data <- NULL
       reduced_data <- as.data.frame(task$data())
@@ -350,9 +350,9 @@ cpi <- function(task, learner,
   # Run in parallel if a parallel backend is registered
   j <- NULL
   if (foreach::getDoParRegistered()) {
-    ret <- foreach(j = idx, .combine = .combine) %dopar% cpi_fun(j, response_is_prob)
+    ret <- foreach(j = idx, .combine = .combine) %dopar% cpi_fun(j)
   } else {
-    ret <- foreach(j = idx, .combine = .combine) %do% cpi_fun(j, response_is_prob)
+    ret <- foreach(j = idx, .combine = .combine) %do% cpi_fun(j)
   }
   
   # If group CPI, rename groups
