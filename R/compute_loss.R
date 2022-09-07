@@ -1,6 +1,6 @@
 
 # Internal function to compute sample loss
-compute_loss <- function(pred, measure) {
+compute_loss <- function(pred, measure, resonse_is_prob = FALSE) {
   if (inherits(pred, "Prediction")) {
     truth <- pred$truth
     response <- pred$response
@@ -9,6 +9,10 @@ compute_loss <- function(pred, measure) {
     truth <- do.call(c, lapply(pred, function(x) x$truth))
     response <- do.call(c, lapply(pred, function(x) x$response))
     prob <- do.call(rbind, lapply(pred, function(x) x$prob))
+  }
+  
+  if (response_is_prob) {
+    prob <- response
   }
   
   if (measure$id == "regr.mse") {
@@ -32,6 +36,9 @@ compute_loss <- function(pred, measure) {
     # First level is positive class
     y <- as.numeric(as.numeric(truth) == 1)
     loss <- (y - prob[, 1])^2
+  } else if (measure$id == "classif.fbeta") {
+    f_meas <- yardstick::f_meas_vec(truth = as.factor(truth), estimate = as.factor(ifelse(prob >= 0.5, yes = 1, no = 0)), event_level = "second")
+    loss <- 1 - f_meas
   } else {
     stop("Unknown measure.")
   }
