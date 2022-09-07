@@ -40,8 +40,23 @@ compute_loss <- function(pred, measure, response_is_prob = FALSE) {
     y <- as.numeric(as.numeric(truth) == 1)
     loss <- (y - prob[, 1])^2
   } else if (measure$id == "classif.fbeta") {
-    f_meas <- yardstick::f_meas_vec(truth = as.factor(truth), estimate = as.factor(ifelse(prob >= 0.5, yes = 1, no = 0)), event_level = "second")
-    loss <- 1 - f_meas
+    
+    if (response_is_prob) {
+      response_class <- ifelse(prob >= 0.5, yes = 1, no = 0)
+    } else {
+      response_class <- response
+    }
+    
+    tp <- length(which(truth == 1 & response_class == 1))
+    fp <- length(which(truth == 0 & response_class == 1))
+    fn <- length(which(truth == 1 & response_class == 0))
+
+    precision <- tp / (tp + fp)
+    recall <- tp / (tp + fn)
+    f1 <- 2 * (precision * recall / (precision + recall))
+    
+    loss <- 1 - f1
+    
   } else {
     stop("Unknown measure.")
   }
