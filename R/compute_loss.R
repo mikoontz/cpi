@@ -50,12 +50,29 @@ compute_loss <- function(pred, measure, response_is_prob = FALSE) {
     tp <- length(which(truth == 1 & response_class == 1))
     fp <- length(which(truth == 0 & response_class == 1))
     fn <- length(which(truth == 1 & response_class == 0))
-
+    
     precision <- tp / (tp + fp)
     recall <- tp / (tp + fn)
     f1 <- 2 * (precision * recall / (precision + recall))
     
     loss <- 1 - f1
+    
+  } else if (measure$id == "classif.mcc") {
+    
+    if (response_is_prob) {
+      response_class <- ifelse(prob >= 0.5, yes = 1, no = 0)
+    } else {
+      response_class <- response
+    }
+    
+    tp <- as.numeric(length(which(truth == 1 & response_class == 1)))
+    fp <- as.numeric(length(which(truth == 0 & response_class == 1)))
+    tn <- as.numeric(length(which(truth == 0 & response_class == 0)))
+    fn <- as.numeric(length(which(truth == 1 & response_class == 0)))
+    
+    mcc <- ((tp * tn) - (fn * fp)) / sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+    
+    loss <- -1 * mcc  
     
   } else {
     stop("Unknown measure.")

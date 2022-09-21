@@ -170,8 +170,8 @@ cpi <- function(task, learner,
     measure <- msr(measure)
   }
   
-  if (!(measure$id %in% c("regr.mse", "regr.mae", "classif.ce", "classif.logloss", "classif.bbrier", "classif.fbeta"))) {
-    stop("Currently only implemented for 'regr.mse', 'regr.mae', 'classif.ce', 'classif.logloss', 'classif.bbrier', and 'classif.fbeta' measures.")
+  if (!(measure$id %in% c("regr.mse", "regr.mae", "classif.ce", "classif.logloss", "classif.bbrier", "classif.fbeta", "classif.mcc"))) {
+    stop("Currently only implemented for 'regr.mse', 'regr.mae', 'classif.ce', 'classif.logloss', 'classif.bbrier', 'classif.fbeta', and 'classif.mcc' measures.")
   }
   if (!(test %in% c("t", "fisher", "bayes", "wilcox", "binom"))) {
     stop("Unknown test in 'test' argument.")
