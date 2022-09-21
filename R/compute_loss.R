@@ -1,6 +1,6 @@
 
 # Internal function to compute sample loss
-compute_loss <- function(pred, measure, response_is_prob = FALSE) {
+compute_loss <- function(pred, measure, response_is_prob = FALSE, classification_thresh = 0.5) {
   if (inherits(pred, "Prediction")) {
     truth <- pred$truth
     response <- pred$response
@@ -42,14 +42,14 @@ compute_loss <- function(pred, measure, response_is_prob = FALSE) {
   } else if (measure$id == "classif.fbeta") {
     
     if (response_is_prob) {
-      response_class <- ifelse(prob >= 0.5, yes = 1, no = 0)
+      response_class <- ifelse(prob >= classification_thresh, yes = 1, no = 0)
     } else {
       response_class <- response
     }
     
-    tp <- length(which(truth == 1 & response_class == 1))
-    fp <- length(which(truth == 0 & response_class == 1))
-    fn <- length(which(truth == 1 & response_class == 0))
+    tp <- as.numeric(length(which(truth == 1 & response_class == 1)))
+    fp <- as.numeric(length(which(truth == 0 & response_class == 1)))
+    fn <- as.numeric(length(which(truth == 1 & response_class == 0)))
     
     precision <- tp / (tp + fp)
     recall <- tp / (tp + fn)
@@ -60,7 +60,7 @@ compute_loss <- function(pred, measure, response_is_prob = FALSE) {
   } else if (measure$id == "classif.mcc") {
     
     if (response_is_prob) {
-      response_class <- ifelse(prob >= 0.5, yes = 1, no = 0)
+      response_class <- ifelse(prob >= classification_thresh, yes = 1, no = 0)
     } else {
       response_class <- response
     }

@@ -147,7 +147,8 @@ cpi <- function(task, learner,
                 knockoff_fun = function(x) knockoff::create.second_order(as.matrix(x)),
                 groups = NULL,
                 verbose = FALSE,
-                response_is_prob = FALSE) {
+                response_is_prob = FALSE,
+                classification_thresh = 0.5) {
   
   # Set verbose level (and save old state)
   old_logger_treshold <- lgr::get_logger("mlr3")$threshold
@@ -221,7 +222,7 @@ cpi <- function(task, learner,
   fit_full <- fit_learner(learner = learner, task = task, resampling = resampling, 
                           measure = measure, test_data = test_data, verbose = verbose)
   pred_full <- predict_learner(fit_full, task, resampling = resampling, test_data = test_data)
-  err_full <- compute_loss(pred_full, measure, response_is_prob)
+  err_full <- compute_loss(pred_full, measure, response_is_prob, classification_thresh)
   
   # Generate knockoff data
   if (is.null(x_tilde)) {
@@ -266,7 +267,7 @@ cpi <- function(task, learner,
     
     # Predict with knockoff data
     pred_reduced <- predict_learner(fit_full, reduced_task, resampling = resampling, test_data = reduced_test_data)
-    err_reduced <- compute_loss(pred_reduced, measure, response_is_prob)
+    err_reduced <- compute_loss(pred_reduced, measure, response_is_prob, classification_thresh)
     if (log) {
       dif <- log(err_reduced / err_full)
     } else {
