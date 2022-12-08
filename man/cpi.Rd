@@ -36,7 +36,10 @@ learner will be created via \code{mlr3::\link{lrn}}.}
 
 \item{measure}{Performance measure (loss). Per default, use MSE 
 (\code{"regr.mse"}) for regression and logloss (\code{"classif.logloss"}) 
-for classification.}
+for classification. Alternatively, \code{"measure"} can be a user-defined
+loss function that takes \code{truth}, \code{response}, and \code{prob} as
+inputs and returns a vector representing the "loss" (which may be a 
+one-element vector). See examples.}
 
 \item{test}{Statistical test to perform, one of \code{"t"} (t-test, default), 
 \code{"wilcox"} (Wilcoxon signed-rank test), \code{"binom"} (binomial 
@@ -230,6 +233,8 @@ rescale_prob <- function(truth, response, prob, classification_thresh) {
    classes <- levels(truth)
    response <- ifelse(prob[, classes[1]] >= classification_thresh, 
                       yes = classes[1], no = classes[2])
+   response <- factor(response, levels = classes)
+
    prob[, classes[1]] <- ifelse(prob[, classes[1]] <= classification_thresh,
                                 yes = rescale(x = prob[, classes[1]],
                                               old_max = classification_thresh,
@@ -262,6 +267,62 @@ rescale_prob <- function(truth, response, prob, classification_thresh) {
      measure = "classif.logloss", test = "t", 
      modify_trp = rescale_prob,
      classification_thresh = 0.3)
+     
+# User-supplied custom loss function; here we use Matthew's correlation coefficient
+
+# Note that MCC yields a batch-level measure of loss, rather than an
+# observation-level measure. Statistical tests currently implemented rely on
+# observation-level measures to act as "samples" from a broader population.
+# Thus, these tests are not appropriate for a batch-level measure because only
+# one value is produced regardless of resampling scheme. It is currently
+# recommended to use the `test_data` functionality and preserve the batch-level
+# loss measurements for each set of `test_data`, which can be set up ahead of
+# time by the user to mimic various resampling strategies (e.g., a separate 
+# `test_data` set for each fold and each iteration in a repeated_cv resampling
+# approach). A user may then apply their own statistical tests to these multiple
+# batch-level CPI measures to assess significance. In this case, a user may
+# wish to set the `test` argument to "fisher" and the `B` argument to 1 in order
+# to prevent errors associated with trying to perform a statistical test on
+# a single observation.
+
+mcc <- function(truth, response, prob) {
+
+   classes <- levels(truth)
+   pos_class <- classes[1]
+   neg_class <- classes[2]
+
+   tp <- as.numeric(length(which(truth == pos_class & response == pos_class)))
+   fp <- as.numeric(length(which(truth == neg_class & response == pos_class)))
+   tn <- as.numeric(length(which(truth == neg_class & response == neg_class)))
+   fn <- as.numeric(length(which(truth == pos_class & response == neg_class)))
+   
+   mcc <- ((tp * tn) - (fn * fp)) / sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+   
+   loss <- 1 - mcc
+} 
+
+# Data prep
+
+data = palmerpenguins::penguins
+data$species = factor(ifelse(data$species == "Adelie", "1", "0"))
+keep_cols <- c("species", "bill_length_mm", "bill_depth_mm", 
+                "flipper_length_mm", "body_mass_g")
+data <- data[, keep_cols]
+data <- data[complete.cases(data), ]
+
+# split data into analysis and test data
+split <- rsample::initial_split(data)
+analysis_data <- rsample::analysis(split)
+assessment_data <- rsample::assessment(split)
+
+ cpi(task = TaskClassif$new(id = "penguins.binary", backend = data, 
+                            target = "species", positive = "1"), 
+    learner = lrn("classif.ranger", predict_type = "prob"), 
+    test_data = test_data,
+    measure = mcc, 
+    test = "fisher",
+    B = 1)
+ 
 }
 
 }
