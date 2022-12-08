@@ -18,7 +18,10 @@ compute_loss <- function(pred, measure, modify_trp, ...) {
     prob <- out$prob
   }
   
-  if (measure$id == "regr.mse") {
+  if (is.function(measure)) {
+    # custom loss function passed to measure argument by user
+    loss <- measure(truth, response, prob)
+  } else if (measure$id == "regr.mse") {
     # Squared errors
     loss <- (truth - response)^2
   } else if (measure$id == "regr.mae") {
