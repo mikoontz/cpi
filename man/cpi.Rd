@@ -28,7 +28,14 @@ learner will be created via \code{mlr3::\link{lrn}}.}
 
 \item{resampling}{Resampling strategy, \code{mlr3} resampling object 
 (e.g. \code{rsmp("holdout")}), "oob" (out-of-bag) or "none" 
-(in-sample loss).}
+(in-sample loss). Note if a \code{mlr3} resampling object is passed, it is
+sometimes helpful to instantiate it ahead of time particularly if 
+additional parameters are needed to do so (e.g., \code{rsmp("custom_cv")}
+requires an \code{f} or \code{col} specification, which has to happen
+during instantiation. This can be achieved by the user by doing this step
+outside of the \code{cpi()} function call, but relying on the \code{cpi()}
+function to do it will fail since only a simple call to \code{$instantiate}
+is done internally).}
 
 \item{test_data}{External validation data, use instead of resampling.}
 

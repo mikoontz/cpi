@@ -12,7 +12,14 @@
 #'    learner will be created via \code{mlr3::\link{lrn}}.
 #' @param resampling Resampling strategy, \code{mlr3} resampling object 
 #'   (e.g. \code{rsmp("holdout")}), "oob" (out-of-bag) or "none" 
-#'   (in-sample loss).
+#'   (in-sample loss). Note if a \code{mlr3} resampling object is passed, it is
+#'   sometimes helpful to instantiate it ahead of time particularly if 
+#'   additional parameters are needed to do so (e.g., \code{rsmp("custom_cv")}
+#'   requires an \code{f} or \code{col} specification, which has to happen
+#'   during instantiation. This can be achieved by the user by doing this step
+#'   outside of the \code{cpi()} function call, but relying on the \code{cpi()}
+#'   function to do it will fail since only a simple call to \code{$instantiate}
+#'   is done internally).
 #' @param test_data External validation data, use instead of resampling.
 #' @param measure Performance measure (loss). Per default, use MSE 
 #'    (\code{"regr.mse"}) for regression and logloss (\code{"classif.logloss"}) 
@@ -209,7 +216,11 @@ cpi <- function(task, learner,
       stop("Either resampling or test_data argument required.")
     }
   } else if (inherits(resampling, "Resampling")) {
-    resampling$instantiate(task)
+    if(!(resampling$is_instantiated)) {
+      resampling$instantiate(task)
+    } else { 
+      # Do nothing if a Resampling object is passed that is already instantiated
+    }
   } else if (resampling %in% c("none", "oob")) {
     # Do nothing
   } else {
@@ -243,7 +254,7 @@ cpi <- function(task, learner,
   } else {
     stop("Argument 'x_tilde' must be a matrix, data.frame or NULL.")
   }
-
+  
   # For each feature, fit reduced model and return difference in error
   cpi_fun <- function(i) {
     if (is.null(test_data)) {
@@ -273,7 +284,7 @@ cpi <- function(task, learner,
     }
     cpi <- mean(dif)
     se <- sd(dif) / sqrt(length(dif))
-
+    
     if (is.null(groups)) {
       res <- data.frame(Variable = task$feature_names[i],
                         CPI = unname(cpi), 
