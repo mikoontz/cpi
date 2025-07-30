@@ -9,7 +9,7 @@
 #'
 #' @param task The prediction \code{mlr3} task, see examples.
 #' @param learner The \code{mlr3} learner used in CPI. If you pass a string, the 
-#'    learner will be created via \code{mlr3::\link{lrn}}.
+#'    learner will be created via \code{mlr3::\link[mlr3]{lrn}}.
 #' @param resampling Resampling strategy, \code{mlr3} resampling object 
 #'   (e.g. \code{rsmp("holdout")}), "oob" (out-of-bag) or "none" 
 #'   (in-sample loss). Note if a \code{mlr3} resampling object is passed, it is
@@ -33,9 +33,11 @@
 #' @param B Number of permutations for Fisher permutation test.
 #' @param alpha Significance level for confidence intervals.
 #' @param x_tilde Knockoff matrix or data.frame. If not given (the default), it will be 
-#'   created with the function given in \code{knockoff_fun}.
+#'   created with the function given in \code{knockoff_fun}. 
+#'   Also accepts a list of matrices or data.frames.
+#' @param aggr_fun Aggregation function over replicates. 
 #' @param knockoff_fun Function to generate knockoffs. Default: 
-#'   \code{knockoff::\link{create.second_order}} with matrix argument.
+#'   \code{knockoff::\link[knockoff]{create.second_order}} with matrix argument.
 #' @param groups (Named) list with groups. Set to \code{NULL} (default) for no
 #'   groups, i.e. compute CPI for each feature. See examples. 
 #' @param verbose Verbose output of resampling procedure.
@@ -151,6 +153,7 @@ cpi <- function(task, learner,
                 B = 1999,
                 alpha = 0.05, 
                 x_tilde = NULL,
+                aggr_fun = mean,
                 knockoff_fun = function(x) knockoff::create.second_order(as.matrix(x)),
                 groups = NULL,
                 verbose = FALSE) {
@@ -183,10 +186,12 @@ cpi <- function(task, learner,
     stop("Unknown test in 'test' argument.")
   }
   if (test == "bayes") {
-    if (!requireNamespace("BEST", quietly = TRUE)) {
-      stop("Package \"BEST\" needed for Bayesian testing. Please install it.",
-           call. = FALSE)
-    }
+    # if (!requireNamespace("BEST", quietly = TRUE)) {
+    #   stop("Package \"BEST\" needed for Bayesian testing. Please install it.",
+    #        call. = FALSE)
+    # }
+    stop("Bayesian testing currently not implemented as BEST package was removed from CRAN.",
+         call. = FALSE)
   }
   
   if (task$task_type == "classif" & measure$id %in% c("classif.logloss", "classif.bbrier")) {
@@ -238,8 +243,9 @@ cpi <- function(task, learner,
     if (is.null(test_data)) {
       x_tilde <- knockoff_fun(task$data(cols = task$feature_names))
     } else {
-      test_data_x_tilde <- knockoff_fun(test_data[, task$feature_names])
+      x_tilde <- knockoff_fun(test_data[, task$feature_names])
     }
+    x_tilde <- list(x_tilde)
   } else if (is.matrix(x_tilde) | is.data.frame(x_tilde)) {
     if (is.null(test_data)) {
       if (any(dim(x_tilde) != dim(task$data(cols = task$feature_names)))) {
@@ -249,7 +255,22 @@ cpi <- function(task, learner,
       if (any(dim(x_tilde) != dim(test_data[, task$feature_names]))) {
         stop("Size of 'x_tilde' must match dimensions of data.")
       }
-      test_data_x_tilde <- x_tilde
+    }
+    x_tilde <- list(x_tilde)
+  } else if (is.list(x_tilde)) {
+    if (length(x_tilde) < 1) {
+      stop("If 'x_tilde' is a list, it cannot be empty.")
+    }
+    if (is.null(test_data)) {
+      #FIXME: Check all dims
+      if (any(dim(x_tilde[[1]]) != dim(task$data(cols = task$feature_names)))) {
+        stop("Size of 'x_tilde' must match dimensions of data.")
+      }
+    } else {
+      #FIXME: Check all dims
+      if (any(dim(x_tilde[[1]]) != dim(test_data[, task$feature_names]))) {
+        stop("Size of 'x_tilde' must match dimensions of data.")
+      }
     }
   } else {
     stop("Argument 'x_tilde' must be a matrix, data.frame or NULL.")
@@ -257,26 +278,34 @@ cpi <- function(task, learner,
   
   # For each feature, fit reduced model and return difference in error
   cpi_fun <- function(i) {
-    if (is.null(test_data)) {
-      reduced_test_data <- NULL
-      reduced_data <- as.data.frame(task$data())
-      reduced_data[, task$feature_names[i]] <- x_tilde[, task$feature_names[i]]
-      if (task$task_type == "regr") {
-        reduced_task <- as_task_regr(reduced_data, target = task$target_names)
-      } else if (task$task_type == "classif") {
-        reduced_task <- as_task_classif(reduced_data, target = task$target_names)
+    err_reduced <- sapply(x_tilde, function(x_tilde_i) {
+      if (is.null(test_data)) {
+        reduced_test_data <- NULL
+        reduced_data <- as.data.frame(task$data())
+        reduced_data[, task$feature_names[i]] <- x_tilde_i[, task$feature_names[i]]
+        if (task$task_type == "regr") {
+          reduced_task <- as_task_regr(reduced_data, target = task$target_names)
+        } else if (task$task_type == "classif") {
+          reduced_task <- as_task_classif(reduced_data, target = task$target_names)
+        } else {
+          stop("Unknown task type.")
+        }
       } else {
-        stop("Unknown task type.")
+        reduced_task <- NULL
+        reduced_test_data <- test_data
+        reduced_test_data[, task$feature_names[i]] <- x_tilde_i[, task$feature_names[i]]
       }
-    } else {
-      reduced_task <- NULL
-      reduced_test_data <- test_data
-      reduced_test_data[, task$feature_names[i]] <- test_data_x_tilde[, task$feature_names[i]]
-    }
+      
+      # Predict with knockoff data
+      pred_reduced <- predict_learner(fit_full, reduced_task, resampling = resampling, test_data = reduced_test_data)
+      err_reduced <- compute_loss(pred_reduced, measure)
+      
+      err_reduced
+    })
     
-    # Predict with knockoff data
-    pred_reduced <- predict_learner(fit_full, reduced_task, resampling = resampling, test_data = reduced_test_data)
-    err_reduced <- compute_loss(pred_reduced, measure)
+    # Average over results with different knockoffs
+    err_reduced <- apply(err_reduced, 1, aggr_fun)
+    
     if (log) {
       dif <- log(err_reduced / err_full)
     } else {
@@ -320,8 +349,9 @@ cpi <- function(task, learner,
       res$p.value <- (sum(perm_means >= orig_mean) + 1)/(B + 1)
       res$ci.lo <- orig_mean - quantile(perm_means, 1 - alpha)
     } else if (test == "bayes") {
-      res <- list(BEST::BESTmcmc(dif, parallel = FALSE, verbose = FALSE))
-      names(res) <- task$feature_names[i]
+      #res <- list(BEST::BESTmcmc(dif, parallel = FALSE, verbose = FALSE))
+      #names(res) <- task$feature_names[i]
+      message("Bayesian testing currently not implemented as BEST package was removed from CRAN.")
     } else if (test %in% c('t', 'wilcox', 'binom')) {
       if (test == "t") {
         test_result <- t.test(dif, alternative = 'greater', 

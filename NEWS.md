@@ -1,4 +1,8 @@
 
+# cpi 0.1.5
+* Allow a list of knockoff matrices to improve stability
+* Remove BEST dependency (removed from CRAN)
+
 # cpi 0.1.4
 * Reset options() in vignette
 
